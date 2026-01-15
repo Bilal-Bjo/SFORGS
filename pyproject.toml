@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sforgs"
+version = "1.0.0"
+description = "A beautiful terminal app to manage and open Salesforce orgs"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Bilal Bjo"}
+]
+keywords = ["salesforce", "cli", "terminal", "tui", "devops", "sfdc", "sf"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "rich>=13.0.0",
+    "questionary>=2.0.0",
+]
+
+[project.scripts]
+sforgs = "sforgs:main"
+
+[project.urls]
+Homepage = "https://github.com/Bilal-Bjo/SFORGS"
+Repository = "https://github.com/Bilal-Bjo/SFORGS"
+Issues = "https://github.com/Bilal-Bjo/SFORGS/issues"
+
+[tool.setuptools]
+py-modules = ["sforgs"]
