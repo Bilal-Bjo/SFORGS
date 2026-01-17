@@ -1,6 +1,6 @@
 # SF Orgs
 
-A beautiful terminal application to manage and quickly open your Salesforce orgs.
+An enterprise-grade terminal user interface for Salesforce org management and navigation.
 
 ![Python](https://img.shields.io/badge/python-3.8+-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
@@ -8,48 +8,45 @@ A beautiful terminal application to manage and quickly open your Salesforce orgs
 
 ## Overview
 
-**SF Orgs** is a command-line tool that provides a user-friendly interface for managing your authenticated Salesforce organizations. Instead of remembering org aliases or typing lengthy commands, simply run `sforgs` and navigate through your orgs with arrow keys.
+**SF Orgs** streamlines Salesforce org management by providing administrators and developers with a full-featured terminal user interface. The application consolidates org visibility, session management, and quick access into a single, keyboard-driven workflow—eliminating the need to manually execute CLI commands or manage org aliases.
 
-### Features
+### Key Capabilities
 
-- **Beautiful UI** - Color-coded table showing all your orgs at a glance
-- **Interactive Selection** - Navigate with arrow keys, press Enter to open
-- **Connection Status** - Instantly see which orgs are connected vs expired
-- **Smart Re-authentication** - Prompts to re-authenticate expired sessions
-- **Org Type Detection** - Automatically identifies Sandbox, Production, Dev Hub, and Scratch orgs
-- **Cross-platform** - Works on macOS, Linux, and Windows
+- **Unified Org Visibility** - Comprehensive view of all authenticated orgs with real-time connection status
+- **Full Keyboard Navigation** - Arrow keys, vim-style bindings (j/k), and shortcut keys for efficient workflows
+- **Intelligent Search** - Filter orgs instantly by alias, username, org type, or name
+- **Mouse Support** - Click to select, double-click to open for point-and-click accessibility
+- **Session Management** - Identify expired sessions and re-authenticate directly from the interface
+- **Org Type Classification** - Automatic detection and visual distinction of Production, Sandbox, Developer Hub, and Scratch orgs
+- **Cross-Platform Compatibility** - Consistent experience across macOS, Linux, and Windows environments
 
-## Screenshot
+## Interface Preview
 
 ```
-╭──────────────────────────────────────────────────────────────────────────────╮
-│   SF ORGS    Salesforce Org Manager                                          │
-╰──────────────────────────────────────────────────────────────────────────────╯
-
-  Found 3 orgs: 2 connected  1 expired
-
-╭─────┬──────────┬──────────────────────┬────────────┬──────────────────────╮
-│ #   │  Status  │ Alias                │ Type       │ Name                 │
-├─────┼──────────┼──────────────────────┼────────────┼──────────────────────┤
-│ 1   │    ●     │ my-devhub (Hub)      │ Dev Hub    │ My Company           │
-│ 2   │    ●     │ dev-sandbox          │ Sandbox    │ Development          │
-│ 3   │    ●     │ expired-org          │ Sandbox    │ -                    │
-╰─────┴──────────┴──────────────────────┴────────────┴──────────────────────╯
-
-? Select an org to open:
- » ✓ my-devhub            │ Dev Hub    │ My Company
-   ✓ dev-sandbox          │ Sandbox    │ Development
-   ✗ expired-org          │ Sandbox    │ -  (Session expired)
-   ---------------
-   ↩ Exit
+┌────────────────────────────────────────────────────────────────────────────────┐
+│ SF ORGS                                                  Salesforce Org Manager│
+├────────────────────────────────────────────────────────────────────────────────┤
+│ 5 orgs  ● 4 connected  ● 1 expired                                             │
+│                                                                                │
+│  ┃   │ Alias              │ Type       │ Name               │ Username        │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━│
+│  ● │ my-devhub ★ ⬡       │ Dev Hub    │ Acme Corp          │ admin@acme.com  │
+│  ● │ uat-sandbox          │ Sandbox    │ UAT Environment    │ admin@acme.uat  │
+│  ● │ dev-sandbox          │ Sandbox    │ Development        │ admin@acme.dev  │
+│  ● │ feature-scratch      │ Scratch    │ Feature Branch     │ test-xyz@ex...  │
+│  ● │ expired-org          │ Sandbox    │ Legacy Sandbox     │ admin@acme.leg  │
+│                                                                                │
+├────────────────────────────────────────────────────────────────────────────────┤
+│ q Quit • r Refresh • Enter Open • a Re-auth • / Search                         │
+└────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Prerequisites
 
-- **Python 3.8+** - [Download Python](https://www.python.org/downloads/)
+- **Python 3.8 or higher** - [Download Python](https://www.python.org/downloads/)
 - **Salesforce CLI (sf)** - [Install Salesforce CLI](https://developer.salesforce.com/tools/salesforcecli)
 
-Verify Salesforce CLI is installed:
+Verify Salesforce CLI installation:
 ```bash
 sf --version
 ```
@@ -58,14 +55,14 @@ sf --version
 
 ### Option 1: Using pipx (Recommended)
 
-[pipx](https://pypa.github.io/pipx/) installs Python applications in isolated environments:
+[pipx](https://pypa.github.io/pipx/) provides isolated environment installation for Python applications:
 
 ```bash
-# Install pipx if you don't have it
+# Install pipx if not already available
 brew install pipx  # macOS
 # or: pip install pipx
 
-# Install sforgs
+# Install SF Orgs
 pipx install git+https://github.com/Bilal-Bjo/SFORGS.git
 ```
 
@@ -78,112 +75,101 @@ pip install git+https://github.com/Bilal-Bjo/SFORGS.git
 ### Option 3: From Source
 
 ```bash
-# Clone the repository
 git clone https://github.com/Bilal-Bjo/SFORGS.git
 cd SFORGS
-
-# Install with pipx (recommended)
 pipx install -e .
-
-# Or install with pip
-pip install -e .
 ```
 
 ## Usage
 
-Simply run:
+Launch the application:
 
 ```bash
 sforgs
 ```
 
-### Controls
+### Keyboard Reference
 
 | Key | Action |
 |-----|--------|
-| `↑` `↓` | Navigate through orgs |
-| `Enter` | Open selected org in browser |
-| `Esc` / Select "Exit" | Quit the application |
+| `↑` `↓` or `j` `k` | Navigate through org list |
+| `Enter` or `o` | Open selected org in browser |
+| `r` | Refresh org list |
+| `a` | Re-authenticate selected org |
+| `/` | Activate search filter |
+| `Escape` | Clear search / Close search |
+| `q` | Exit application |
 
 ### Status Indicators
 
-| Symbol | Meaning |
-|--------|---------|
-| `●` (green) | Connected - ready to open |
-| `●` (red) | Expired - needs re-authentication |
-| `★` | Default org |
-| `(Hub)` | Dev Hub org |
+| Indicator | Description |
+|-----------|-------------|
+| `●` (green) | Active session - org accessible |
+| `●` (red) | Expired session - requires re-authentication |
+| `★` | Default target org |
+| `⬡` | Developer Hub org |
 
-### Org Types
+### Org Type Classification
 
-| Type | Color | Description |
-|------|-------|-------------|
-| Production | Green | Production orgs |
-| Sandbox | Yellow | Sandbox environments |
-| Dev Hub | Magenta | Developer Hub orgs |
-| Scratch | Cyan | Scratch orgs |
+| Type | Description |
+|------|-------------|
+| Production | Production Salesforce instances |
+| Sandbox | Sandbox environments (Full, Partial, Developer) |
+| Dev Hub | Developer Hub orgs for scratch org management |
+| Scratch | Temporary scratch orgs for development |
 
-## How It Works
+## Technical Architecture
 
-1. **Fetches Orgs** - Runs `sf org list --json` to get all authenticated orgs
-2. **Parses Data** - Extracts relevant information (alias, type, status, etc.)
-3. **Displays Table** - Shows a color-coded table with all orgs
-4. **Interactive Selection** - Lets you choose an org with arrow keys
-5. **Opens Browser** - Runs `sf org open -o <alias>` to open the selected org
+SF Orgs interfaces with the Salesforce CLI to retrieve org metadata and execute org operations:
+
+1. **Data Retrieval** - Executes `sf org list --json` to enumerate authenticated orgs
+2. **Session Validation** - Parses connection status to identify active and expired sessions
+3. **Org Classification** - Analyzes org metadata to determine org type and role
+4. **Browser Integration** - Invokes `sf org open -o <alias>` for org access
+5. **Re-authentication** - Initiates `sf org login web` workflow for session renewal
 
 ## Dependencies
 
-- [rich](https://github.com/Textualize/rich) - Beautiful terminal formatting
-- [questionary](https://github.com/tmbo/questionary) - Interactive command-line prompts
+- [Textual](https://github.com/Textualize/textual) - Modern terminal user interface framework
 
 ## Troubleshooting
 
-### "Salesforce CLI (sf) not found"
+### Salesforce CLI Not Found
 
-Make sure the Salesforce CLI is installed and in your PATH:
+Ensure the Salesforce CLI is installed and available in your system PATH:
 ```bash
-# Install Salesforce CLI
 npm install -g @salesforce/cli
-
-# Or on macOS with Homebrew
+# or on macOS:
 brew install sf
 ```
 
-### "No authenticated orgs found"
+### No Authenticated Orgs
 
-Authenticate with a Salesforce org first:
+Authenticate with at least one Salesforce org:
 ```bash
-# For production/dev hub
+# Production or Developer Hub
 sf org login web
 
-# For sandbox
+# Sandbox
 sf org login web -r https://test.salesforce.com
 ```
 
-### Session Expired
+### Expired Sessions
 
-When you select an org with an expired session, SF Orgs will offer to re-authenticate. This opens the Salesforce login page in your browser.
+Select an org with an expired session and press `a` to initiate re-authentication through the browser-based login flow.
 
 ## Contributing
 
-Contributions are welcome! Feel free to:
+Contributions are welcome. Please follow standard pull request procedures:
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create a feature branch
+3. Submit a pull request with a clear description of changes
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
 
 ## Author
 
 **Bilal Bjo** - [GitHub](https://github.com/Bilal-Bjo)
-
-## Acknowledgments
-
-- [Salesforce CLI](https://developer.salesforce.com/tools/salesforcecli) - The underlying CLI tool
-- [Rich](https://github.com/Textualize/rich) - For beautiful terminal output
-- [Questionary](https://github.com/tmbo/questionary) - For interactive prompts

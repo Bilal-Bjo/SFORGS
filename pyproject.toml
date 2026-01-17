@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "sforgs"
 version = "1.0.0"
-description = "A beautiful terminal app to manage and open Salesforce orgs"
+description = "Enterprise-grade terminal user interface for Salesforce org management and navigation"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
@@ -30,8 +30,7 @@ classifiers = [
     "Topic :: Utilities",
 ]
 dependencies = [
-    "rich>=13.0.0",
-    "questionary>=2.0.0",
+    "textual>=0.47.0",
 ]
 
 [project.scripts]

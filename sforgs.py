@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-SF Orgs - A beautiful terminal app to manage and open Salesforce orgs
+SF Orgs - Enterprise-grade terminal user interface for Salesforce org management
 
-This tool provides a user-friendly terminal interface for managing Salesforce
-org connections. It displays all authenticated orgs, their connection status,
-and allows quick access to open them in the browser.
+A full-featured TUI application that streamlines Salesforce org management by
+providing administrators and developers with unified org visibility, session
+management, and quick access through a keyboard-driven workflow.
 
 Author: Bilal Bjo
 License: MIT
@@ -14,161 +14,80 @@ Repository: https://github.com/Bilal-Bjo/SFORGS
 import json
 import subprocess
 import sys
+from typing import Optional
 
-# =============================================================================
-# DEPENDENCY HANDLING
-# =============================================================================
-# Automatically install required packages if not present
-try:
-    from rich.console import Console
-    from rich.table import Table
-    from rich.panel import Panel
-    from rich.text import Text
-    from rich import box
-    import questionary
-    from questionary import Style
-except ImportError:
-    print("Installing required packages...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "rich", "questionary", "-q"])
-    from rich.console import Console
-    from rich.table import Table
-    from rich.panel import Panel
-    from rich.text import Text
-    from rich import box
-    import questionary
-    from questionary import Style
+from textual import on, work
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.containers import Container, Horizontal, Vertical
+from textual.widgets import DataTable, Footer, Header, Input, Label, Static
+from textual.worker import Worker, WorkerState
 
-# =============================================================================
-# CONFIGURATION
-# =============================================================================
-
-# Rich console instance for styled output
-console = Console()
-
-# Custom styling for the interactive questionary prompts
-custom_style = Style([
-    ('qmark', 'fg:cyan bold'),       # Question mark
-    ('question', 'fg:white bold'),   # Question text
-    ('answer', 'fg:cyan bold'),      # Selected answer
-    ('pointer', 'fg:cyan bold'),     # Selection pointer (>)
-    ('highlighted', 'fg:cyan bold'), # Highlighted option
-    ('selected', 'fg:green'),        # Selected item
-    ('separator', 'fg:gray'),        # Separator lines
-    ('instruction', 'fg:gray'),      # Help text
-])
 
 # =============================================================================
 # SALESFORCE CLI INTERACTION
 # =============================================================================
 
-def get_sf_orgs():
-    """
-    Fetch all authenticated Salesforce orgs using the SF CLI.
-
-    Executes 'sf org list --json' and parses the JSON response.
-
-    Returns:
-        dict: The 'result' portion of the SF CLI response containing org data.
-
-    Raises:
-        SystemExit: If SF CLI is not found, times out, or returns invalid JSON.
-    """
-    try:
-        result = subprocess.run(
-            ["sf", "org", "list", "--json"],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        data = json.loads(result.stdout)
-        return data.get("result", {})
-    except FileNotFoundError:
-        console.print("[red]Error: Salesforce CLI (sf) not found. Please install it first.[/red]")
-        console.print("[dim]Visit: https://developer.salesforce.com/tools/salesforcecli[/dim]")
-        sys.exit(1)
-    except subprocess.TimeoutExpired:
-        console.print("[red]Error: Command timed out.[/red]")
-        sys.exit(1)
-    except json.JSONDecodeError:
-        console.print("[red]Error: Failed to parse SF CLI output.[/red]")
-        sys.exit(1)
+def get_sf_orgs() -> dict:
+    """Fetch all authenticated Salesforce orgs using the SF CLI."""
+    result = subprocess.run(
+        ["sf", "org", "list", "--json"],
+        capture_output=True,
+        text=True,
+        timeout=30
+    )
+    data = json.loads(result.stdout)
+    return data.get("result", {})
 
 
-def open_org(org):
-    """
-    Open the selected Salesforce org in the default web browser.
-
-    Uses 'sf org open' command to launch the org's setup page.
-
-    Args:
-        org (dict): Organization data containing 'alias' and 'username'.
-    """
-    # Prefer alias over username for cleaner commands
-    alias_or_username = org["alias"] if org["alias"] != "-" else org["username"]
-
-    console.print(f"\n[cyan]Opening[/cyan] [bold]{alias_or_username}[/bold] [cyan]in browser...[/cyan]\n")
-
+def open_org(alias_or_username: str) -> tuple[bool, str]:
+    """Open the selected Salesforce org in the default web browser."""
     try:
         subprocess.run(
             ["sf", "org", "open", "-o", alias_or_username],
-            check=True
+            check=True,
+            capture_output=True
         )
-        console.print("[green]✓ Org opened successfully![/green]\n")
+        return True, f"Opened {alias_or_username}"
     except subprocess.CalledProcessError as e:
-        console.print(f"[red]✗ Failed to open org: {e}[/red]\n")
+        return False, f"Failed to open org: {e}"
 
 
-def reauth_org(org):
-    """
-    Re-authenticate an org with an expired session.
-
-    Initiates the web login flow for the org, using the appropriate
-    login URL based on org type (sandbox vs production).
-
-    Args:
-        org (dict): Organization data containing 'alias', 'username', and 'type'.
-    """
-    alias_or_username = org["alias"] if org["alias"] != "-" else org["username"]
-
-    # Sandboxes use test.salesforce.com, production uses login.salesforce.com
-    login_url = "test.salesforce.com" if org["type"] == "Sandbox" else "login.salesforce.com"
-
-    console.print(f"\n[yellow]Re-authenticating[/yellow] [bold]{alias_or_username}[/bold]...\n")
-
+def reauth_org(alias_or_username: str, is_sandbox: bool) -> tuple[bool, str]:
+    """Re-authenticate an org with an expired session."""
+    login_url = "test.salesforce.com" if is_sandbox else "login.salesforce.com"
     cmd = ["sf", "org", "login", "web", "-r", f"https://{login_url}"]
 
-    # Preserve the alias if one exists
-    if org["alias"] != "-":
-        cmd.extend(["-a", org["alias"]])
+    if alias_or_username and alias_or_username != "-":
+        cmd.extend(["-a", alias_or_username])
 
     try:
         subprocess.run(cmd, check=True)
-        console.print("[green]✓ Re-authentication successful![/green]\n")
+        return True, f"Re-authenticated {alias_or_username}"
     except subprocess.CalledProcessError as e:
-        console.print(f"[red]✗ Re-authentication failed: {e}[/red]\n")
+        return False, f"Re-authentication failed: {e}"
+
 
 # =============================================================================
 # DATA PROCESSING
 # =============================================================================
 
-def parse_orgs(org_data):
-    """
-    Parse raw SF CLI org data into a unified, sorted list.
+def get_org_type(org: dict) -> str:
+    """Determine the type of Salesforce org."""
+    if org.get("isScratch"):
+        return "Scratch"
+    elif org.get("isDevHub"):
+        return "Dev Hub"
+    elif org.get("isSandbox"):
+        return "Sandbox"
+    return "Production"
 
-    Combines scratch orgs and non-scratch orgs, removes duplicates,
-    and sorts by connection status (connected first) then by alias.
 
-    Args:
-        org_data (dict): Raw org data from SF CLI containing 'nonScratchOrgs'
-                         and 'scratchOrgs' lists.
-
-    Returns:
-        list: List of org dictionaries with normalized fields.
-    """
+def parse_orgs(org_data: dict) -> list[dict]:
+    """Parse raw SF CLI org data into a unified, sorted list."""
     orgs = []
-    seen = set()  # Track usernames to avoid duplicates
+    seen = set()
 
-    # Combine all org types into a single list
     all_orgs = (
         org_data.get("nonScratchOrgs", []) +
         org_data.get("scratchOrgs", [])
@@ -176,233 +95,400 @@ def parse_orgs(org_data):
 
     for org in all_orgs:
         username = org.get("username", "")
-
-        # Skip duplicates (same org can appear in multiple lists)
         if username in seen:
             continue
         seen.add(username)
 
-        # Extract and normalize org properties
         alias = org.get("alias", "-")
         status = org.get("connectedStatus", "Unknown")
         is_connected = status == "Connected"
         org_type = get_org_type(org)
-        name = org.get("name", "-")
-        instance_url = org.get("instanceUrl", "")
 
         orgs.append({
             "alias": alias,
             "username": username,
             "type": org_type,
-            "name": name,
+            "name": org.get("name", "-"),
             "status": status,
             "is_connected": is_connected,
-            "instance_url": instance_url,
+            "instance_url": org.get("instanceUrl", ""),
             "is_default": org.get("isDefaultUsername", False),
             "is_dev_hub": org.get("isDevHub", False),
+            "is_sandbox": org.get("isSandbox", False),
         })
 
-    # Sort: connected orgs first, then alphabetically by alias
     orgs.sort(key=lambda x: (not x["is_connected"], x["alias"].lower()))
     return orgs
 
 
-def get_org_type(org):
-    """
-    Determine the type of Salesforce org.
-
-    Args:
-        org (dict): Raw org data from SF CLI.
-
-    Returns:
-        str: One of 'Scratch', 'Dev Hub', 'Sandbox', or 'Production'.
-    """
-    if org.get("isScratch"):
-        return "Scratch"
-    elif org.get("isDevHub"):
-        return "Dev Hub"
-    elif org.get("isSandbox"):
-        return "Sandbox"
-    else:
-        return "Production"
-
 # =============================================================================
-# USER INTERFACE
+# CUSTOM WIDGETS
 # =============================================================================
 
-def display_header():
-    """Display the application header banner."""
-    header = Text()
-    header.append("  SF ORGS  ", style="bold white on blue")
-    header.append("  Salesforce Org Manager", style="dim")
-    console.print()
-    console.print(Panel(header, box=box.ROUNDED, border_style="blue"))
-    console.print()
+class StatsBar(Static):
+    """Displays connection statistics."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.connected = 0
+        self.expired = 0
+        self.total = 0
+
+    def update_stats(self, orgs: list[dict]) -> None:
+        self.total = len(orgs)
+        self.connected = sum(1 for o in orgs if o["is_connected"])
+        self.expired = self.total - self.connected
+        self.refresh_display()
+
+    def refresh_display(self) -> None:
+        if self.total == 0:
+            self.update("No orgs found")
+        else:
+            parts = [f"[bold]{self.total}[/bold] orgs"]
+            if self.connected > 0:
+                parts.append(f"[green]● {self.connected} connected[/green]")
+            if self.expired > 0:
+                parts.append(f"[red]● {self.expired} expired[/red]")
+            self.update("  ".join(parts))
 
 
-def display_orgs_table(orgs):
+class SearchInput(Input):
+    """Search input that appears when user presses /."""
+
+    DEFAULT_CSS = """
+    SearchInput {
+        width: 100%;
+        margin: 0;
+    }
     """
-    Display all orgs in a formatted table.
 
-    Shows status (connected/expired), alias, type, name, and username
-    with color-coded indicators for easy scanning.
+    def __init__(self, id: str = "search-input") -> None:
+        super().__init__(placeholder="Search orgs...", id=id)
 
-    Args:
-        orgs (list): List of parsed org dictionaries.
-    """
-    table = Table(
-        box=box.ROUNDED,
-        border_style="blue",
-        header_style="bold cyan",
-        show_lines=False,
-        padding=(0, 1),
-    )
 
-    # Define table columns
-    table.add_column("#", style="dim", width=3)
-    table.add_column("Status", width=8, justify="center")
-    table.add_column("Alias", style="bold", width=20)
-    table.add_column("Type", width=10)
-    table.add_column("Name", width=20)
-    table.add_column("Username", style="dim")
+# =============================================================================
+# MAIN APPLICATION
+# =============================================================================
 
-    for i, org in enumerate(orgs, 1):
-        # Status indicator: green dot for connected, red for expired
-        status_icon = "[green]●[/green]" if org["is_connected"] else "[red]●[/red]"
-        status_text = status_icon
+TCSS = """
+Screen {
+    background: $surface;
+}
 
-        # Color alias based on connection status
-        alias_style = "bold green" if org["is_connected"] else "bold red"
-        alias_text = f"[{alias_style}]{org['alias']}[/{alias_style}]"
+#main-container {
+    width: 100%;
+    height: 100%;
+}
 
-        # Add badges for default org and dev hub
-        if org["is_default"]:
-            alias_text += " [yellow]★[/yellow]"
-        if org["is_dev_hub"]:
-            alias_text += " [magenta](Hub)[/magenta]"
+#stats-bar {
+    dock: top;
+    height: 1;
+    padding: 0 1;
+    background: $primary-background;
+    color: $text;
+}
 
-        # Color-code org types for quick identification
-        type_style = {
-            "Sandbox": "yellow",
-            "Dev Hub": "magenta",
-            "Scratch": "cyan",
-            "Production": "green",
-        }.get(org["type"], "white")
+#search-container {
+    dock: top;
+    height: auto;
+    display: none;
+    padding: 0 1;
+}
 
-        table.add_row(
-            str(i),
-            status_text,
-            alias_text,
-            f"[{type_style}]{org['type']}[/{type_style}]",
-            org["name"][:20] if org["name"] != "-" else "-",
-            org["username"],
+#search-container.visible {
+    display: block;
+}
+
+#table-container {
+    width: 100%;
+    height: 1fr;
+    padding: 0 1;
+}
+
+DataTable {
+    height: 100%;
+}
+
+DataTable > .datatable--cursor {
+    background: $accent;
+    color: $text;
+}
+
+DataTable > .datatable--header {
+    background: $primary;
+    color: $text;
+    text-style: bold;
+}
+
+#loading-label {
+    width: 100%;
+    height: 100%;
+    content-align: center middle;
+    text-style: italic;
+    color: $text-muted;
+}
+
+#no-orgs-label {
+    width: 100%;
+    height: 100%;
+    content-align: center middle;
+    color: $warning;
+}
+
+Footer {
+    background: $primary-background;
+}
+"""
+
+
+class SFOrgsApp(App):
+    """Salesforce Org Manager - A beautiful terminal app."""
+
+    TITLE = "SF ORGS"
+    SUB_TITLE = "Salesforce Org Manager"
+    CSS = TCSS
+
+    BINDINGS = [
+        Binding("q", "quit", "Quit"),
+        Binding("r", "refresh", "Refresh"),
+        Binding("enter", "open_org", "Open", show=True),
+        Binding("o", "open_org", "Open", show=False),
+        Binding("a", "reauth", "Re-auth"),
+        Binding("slash", "search", "Search"),
+        Binding("escape", "clear_search", "Clear", show=False),
+        Binding("j", "cursor_down", "Down", show=False),
+        Binding("k", "cursor_up", "Up", show=False),
+    ]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.orgs: list[dict] = []
+        self.filtered_orgs: list[dict] = []
+        self.search_query: str = ""
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Container(id="main-container"):
+            yield StatsBar(id="stats-bar")
+            with Container(id="search-container"):
+                yield SearchInput()
+            with Container(id="table-container"):
+                yield Label("Loading orgs...", id="loading-label")
+                yield DataTable(id="orgs-table", cursor_type="row")
+        yield Footer()
+
+    def on_mount(self) -> None:
+        """Called when app starts."""
+        table = self.query_one("#orgs-table", DataTable)
+        table.display = False
+        self.load_orgs()
+
+    @work(exclusive=True, thread=True)
+    def load_orgs(self) -> list[dict]:
+        """Load orgs in a background thread."""
+        try:
+            org_data = get_sf_orgs()
+            return parse_orgs(org_data)
+        except FileNotFoundError:
+            return []
+        except Exception:
+            return []
+
+    @on(Worker.StateChanged)
+    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        """Handle worker completion for load_orgs only."""
+        if event.state == WorkerState.SUCCESS and event.worker.name == "load_orgs":
+            self.orgs = event.worker.result or []
+            self.filtered_orgs = self.orgs.copy()
+            self.populate_table()
+
+    def populate_table(self) -> None:
+        """Populate the DataTable with org data."""
+        loading = self.query_one("#loading-label", Label)
+        table = self.query_one("#orgs-table", DataTable)
+        stats = self.query_one("#stats-bar", StatsBar)
+
+        loading.display = False
+        table.display = True
+
+        table.clear(columns=True)
+
+        if not self.filtered_orgs:
+            if self.search_query:
+                loading.update("No matching orgs found")
+            else:
+                loading.update("No authenticated orgs. Run: sf org login web")
+            loading.display = True
+            table.display = False
+            stats.update_stats([])
+            return
+
+        stats.update_stats(self.orgs)
+
+        table.add_column("", key="status", width=3)
+        table.add_column("Alias", key="alias", width=20)
+        table.add_column("Type", key="type", width=12)
+        table.add_column("Name", key="name", width=20)
+        table.add_column("Username", key="username")
+
+        for org in self.filtered_orgs:
+            status_icon = "[green]●[/green]" if org["is_connected"] else "[red]●[/red]"
+
+            alias_text = org["alias"]
+            if org["is_default"]:
+                alias_text += " [yellow]★[/yellow]"
+            if org["is_dev_hub"]:
+                alias_text += " [magenta]⬡[/magenta]"
+
+            type_colors = {
+                "Sandbox": "yellow",
+                "Dev Hub": "magenta",
+                "Scratch": "cyan",
+                "Production": "green",
+            }
+            type_color = type_colors.get(org["type"], "white")
+            type_text = f"[{type_color}]{org['type']}[/{type_color}]"
+
+            name = org["name"][:18] + ".." if len(org["name"]) > 20 else org["name"]
+
+            table.add_row(
+                status_icon,
+                alias_text,
+                type_text,
+                name,
+                org["username"],
+                key=org["username"],
+            )
+
+    def get_selected_org(self) -> Optional[dict]:
+        """Get the currently selected org."""
+        table = self.query_one("#orgs-table", DataTable)
+        if table.cursor_row is not None and table.cursor_row < len(self.filtered_orgs):
+            return self.filtered_orgs[table.cursor_row]
+        return None
+
+    def action_open_org(self) -> None:
+        """Open the selected org in browser."""
+        org = self.get_selected_org()
+        if not org:
+            self.notify("No org selected", severity="warning")
+            return
+
+        if not org["is_connected"]:
+            self.notify("Session expired - press 'a' to re-authenticate", severity="warning")
+            return
+
+        alias_or_username = org["alias"] if org["alias"] != "-" else org["username"]
+        self.notify(f"Opening {alias_or_username}...", severity="information")
+        self.run_open_org(alias_or_username)
+
+    @work(thread=True)
+    def run_open_org(self, alias_or_username: str) -> None:
+        """Run org open in background thread."""
+        success, message = open_org(alias_or_username)
+        self.call_from_thread(
+            self.notify,
+            message,
+            severity="information" if success else "error"
         )
 
-    console.print(table)
-    console.print()
+    def action_reauth(self) -> None:
+        """Re-authenticate the selected org."""
+        org = self.get_selected_org()
+        if not org:
+            self.notify("No org selected", severity="warning")
+            return
+
+        alias_or_username = org["alias"] if org["alias"] != "-" else org["username"]
+        self.notify(f"Opening login page for {alias_or_username}...", severity="information")
+        self.run_reauth_org(alias_or_username, org["is_sandbox"])
+
+    @work(thread=True)
+    def run_reauth_org(self, alias_or_username: str, is_sandbox: bool) -> None:
+        """Run re-auth in background thread."""
+        success, message = reauth_org(alias_or_username, is_sandbox)
+        self.call_from_thread(
+            self.notify,
+            message,
+            severity="information" if success else "error"
+        )
+        if success:
+            self.call_from_thread(self.load_orgs)
+
+    def action_refresh(self) -> None:
+        """Refresh the org list."""
+        loading = self.query_one("#loading-label", Label)
+        table = self.query_one("#orgs-table", DataTable)
+
+        loading.update("Refreshing...")
+        loading.display = True
+        table.display = False
+
+        self.notify("Refreshing orgs...", severity="information")
+        self.load_orgs()
+
+    def action_search(self) -> None:
+        """Show search input."""
+        search_container = self.query_one("#search-container")
+        search_input = self.query_one("#search-input", Input)
+        search_container.add_class("visible")
+        search_input.focus()
+
+    def action_clear_search(self) -> None:
+        """Clear search and hide input."""
+        search_container = self.query_one("#search-container")
+        search_input = self.query_one("#search-input", Input)
+        search_input.value = ""
+        search_container.remove_class("visible")
+        self.search_query = ""
+        self.filtered_orgs = self.orgs.copy()
+        self.populate_table()
+        self.query_one("#orgs-table", DataTable).focus()
+
+    @on(Input.Changed, "#search-input")
+    def on_search_changed(self, event: Input.Changed) -> None:
+        """Filter orgs based on search query."""
+        self.search_query = event.value.lower()
+        if not self.search_query:
+            self.filtered_orgs = self.orgs.copy()
+        else:
+            self.filtered_orgs = [
+                org for org in self.orgs
+                if (self.search_query in org["alias"].lower() or
+                    self.search_query in org["username"].lower() or
+                    self.search_query in org["type"].lower() or
+                    self.search_query in org["name"].lower())
+            ]
+        self.populate_table()
+
+    @on(Input.Submitted, "#search-input")
+    def on_search_submitted(self, event: Input.Submitted) -> None:
+        """Focus table after search submit."""
+        self.query_one("#orgs-table", DataTable).focus()
+
+    def action_cursor_down(self) -> None:
+        """Move cursor down (vim-style)."""
+        table = self.query_one("#orgs-table", DataTable)
+        table.action_cursor_down()
+
+    def action_cursor_up(self) -> None:
+        """Move cursor up (vim-style)."""
+        table = self.query_one("#orgs-table", DataTable)
+        table.action_cursor_up()
+
+    @on(DataTable.RowSelected)
+    def on_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Handle double-click on row."""
+        self.action_open_org()
 
 
-def create_choices(orgs):
-    """
-    Create interactive choices for the org selector.
-
-    Builds a list of questionary Choice objects, with expired orgs
-    shown as disabled with a helpful message.
-
-    Args:
-        orgs (list): List of parsed org dictionaries.
-
-    Returns:
-        list: List of questionary Choice and Separator objects.
-    """
-    choices = []
-
-    for org in orgs:
-        # Visual indicator for connection status
-        status = "✓" if org["is_connected"] else "✗"
-
-        # Format display string with aligned columns
-        display = f"{status} {org['alias']:<20} │ {org['type']:<10} │ {org['name'][:15]:<15}"
-
-        choices.append(questionary.Choice(
-            title=display,
-            value=org,
-            # Disable selection for expired orgs with helpful message
-            disabled=None if org["is_connected"] else "Session expired - needs re-auth"
-        ))
-
-    # Add separator and exit option
-    choices.append(questionary.Separator())
-    choices.append(questionary.Choice(title="↩ Exit", value=None))
-
-    return choices
-
-# =============================================================================
-# MAIN ENTRY POINT
-# =============================================================================
-
-def main():
-    """
-    Main entry point for the SF Orgs application.
-
-    Fetches authenticated orgs, displays them in a table, and provides
-    an interactive selector to open orgs in the browser.
-    """
-    # Show app header
-    display_header()
-
-    # Fetch orgs with a loading spinner
-    with console.status("[cyan]Fetching Salesforce orgs...[/cyan]", spinner="dots"):
-        org_data = get_sf_orgs()
-        orgs = parse_orgs(org_data)
-
-    # Handle case when no orgs are authenticated
-    if not orgs:
-        console.print("[yellow]No authenticated orgs found.[/yellow]")
-        console.print("Run [cyan]sf org login web[/cyan] to authenticate an org.\n")
-        sys.exit(0)
-
-    # Display summary statistics
-    connected = sum(1 for o in orgs if o["is_connected"])
-    expired = len(orgs) - connected
-
-    summary = f"[green]{connected} connected[/green]"
-    if expired > 0:
-        summary += f"  [red]{expired} expired[/red]"
-    console.print(f"  Found {len(orgs)} orgs: {summary}\n")
-
-    # Display the orgs table
-    display_orgs_table(orgs)
-
-    # Show interactive selector
-    console.print("[dim]Use arrow keys to navigate, Enter to select[/dim]\n")
-
-    choices = create_choices(orgs)
-
-    selected = questionary.select(
-        "Select an org to open:",
-        choices=choices,
-        style=custom_style,
-        use_shortcuts=False,
-        use_arrow_keys=True,
-    ).ask()
-
-    # Handle user selection
-    if selected is None:
-        console.print("[dim]Goodbye![/dim]\n")
-        sys.exit(0)
-
-    if selected["is_connected"]:
-        # Open the org in browser
-        open_org(selected)
-    else:
-        # Offer to re-authenticate expired org
-        if questionary.confirm(
-            "This org's session has expired. Would you like to re-authenticate?",
-            style=custom_style,
-            default=True
-        ).ask():
-            reauth_org(selected)
+def main() -> None:
+    """Main entry point."""
+    try:
+        app = SFOrgsApp()
+        app.run()
+    except KeyboardInterrupt:
+        pass
 
 
 if __name__ == "__main__":
